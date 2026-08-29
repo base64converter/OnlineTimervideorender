@@ -36,6 +36,35 @@ export interface ThemeColors {
   labelColor: string;
 }
 
+export interface IntroSlideConfig {
+  enabled: boolean;
+  durationSeconds: number; // default 5s
+  tagline: string; // e.g. "Deep Focus & Productivity"
+  subtitle: string; // e.g. "Visit: blankscreen.cc Support the channel: buymeacoffee.com/prosun"
+  bottomCallout: string; // e.g. "Like, Share & Subscribe!"
+}
+
+export interface DisclaimerSlideConfig {
+  enabled: boolean;
+  durationSeconds: number; // default 5s
+  title: string; // e.g. "DISCLAIMER"
+  body: string; // e.g. "This video is for educational and entertainment purposes only and is not medical advice. Do not drive or operate heavy machinery while listening. Please consult a physician regarding any medical conditions."
+}
+
+export interface OutroSlideConfig {
+  enabled: boolean;
+  durationSeconds: number; // default 5s
+  title: string; // e.g. "TIME'S UP! Great job focusing today."
+  subtitle: string; // e.g. "For more timers, tools, and resources, visit: blankscreen.cc"
+  bottomCallout: string; // e.g. "If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)"
+}
+
+export interface InterstitialSlidesConfig {
+  intro: IntroSlideConfig;
+  disclaimer: DisclaimerSlideConfig;
+  outro: OutroSlideConfig;
+}
+
 export interface RenderOptions {
   fps: number;
   resolution: VideoResolution;
@@ -49,6 +78,7 @@ export interface RenderOptions {
   bitrateMbps: number;
   speedMultiplier: number;
   watermark: WatermarkConfig;
+  slides?: InterstitialSlidesConfig;
   codecPreference?: 'auto' | 'avc-baseline' | 'avc-main' | 'avc-high' | 'vp9' | 'vp8' | 'av1';
 }
 

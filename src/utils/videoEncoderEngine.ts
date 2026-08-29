@@ -1,7 +1,13 @@
 import { ArrayBufferTarget as Mp4ArrayBufferTarget, Muxer as Mp4Muxer } from 'mp4-muxer';
 import { ArrayBufferTarget as WebmArrayBufferTarget, Muxer as WebmMuxer } from 'webm-muxer';
 import { CodecSupportStatus, RenderOptions, RenderProgress, TimerConfig } from '../types';
-import { drawFlipClockFrame, getResolutionDimensions } from './canvasRenderer';
+import {
+  drawFlipClockFrame,
+  drawIntroSlideFrame,
+  drawDisclaimerSlideFrame,
+  drawOutroSlideFrame,
+  getResolutionDimensions
+} from './canvasRenderer';
 
 interface EncoderSelectionResult {
   codec: string;
@@ -92,13 +98,26 @@ export class VideoRenderEngine {
     // Real-time 1:1 countdown video (1 second clock = 1 second video playback)
     const speedMultiplier = 1;
 
+    // Slide durations
+    const introEnabled = options.slides?.intro?.enabled ?? true;
+    const introSec = introEnabled ? (options.slides?.intro?.durationSeconds ?? 5) : 0;
+    const introFrames = Math.round(introSec * fps);
+
+    const disclaimerEnabled = options.slides?.disclaimer?.enabled ?? true;
+    const disclaimerSec = disclaimerEnabled ? (options.slides?.disclaimer?.durationSeconds ?? 5) : 0;
+    const disclaimerFrames = Math.round(disclaimerSec * fps);
+
     const videoCountdownDurationSec = totalSeconds / speedMultiplier;
     const holdSeconds = options.holdEndSeconds || 0;
-    const totalVideoDurationSec = videoCountdownDurationSec + holdSeconds;
-
     const countdownFrames = Math.max(1, Math.round(videoCountdownDurationSec * fps));
     const holdFrames = Math.round(holdSeconds * fps);
-    const totalFrames = countdownFrames + holdFrames;
+
+    const outroEnabled = options.slides?.outro?.enabled ?? true;
+    const outroSec = outroEnabled ? (options.slides?.outro?.durationSeconds ?? 5) : 0;
+    const outroFrames = Math.round(outroSec * fps);
+
+    const totalFrames = introFrames + disclaimerFrames + countdownFrames + holdFrames + outroFrames;
+    const totalVideoDurationSec = introSec + disclaimerSec + videoCountdownDurationSec + holdSeconds + outroSec;
     const frameDurationMicros = Math.round(1_000_000 / fps);
 
     // Find a working encoder configuration
@@ -201,44 +220,73 @@ export class VideoRenderEngine {
         throw encoderError;
       }
 
-      // Calculate exact time state for frame taking speed multiplier into account
+      // Calculate exact time state for frame taking slide timeline and clock into account
       let currentDisplaySeconds = 0;
       let nextDisplaySeconds = 0;
       let fractionalSecond = 0;
+      let phaseLabel = 'Flip Clock';
 
-      if (frameIndex < countdownFrames) {
-        const videoSecElapsed = frameIndex / fps;
-        const countdownSecElapsed = videoSecElapsed * speedMultiplier;
-        if (countdownSecElapsed >= totalSeconds) {
+      // 1. Check Slide 1: Intro Slide
+      if (introFrames > 0 && frameIndex < introFrames) {
+        phaseLabel = 'Slide 1: Intro';
+        const slideProgress = frameIndex / Math.max(1, introFrames);
+        drawIntroSlideFrame(this.ctx, width, height, timer, options, slideProgress);
+        currentDisplaySeconds = totalSeconds;
+      }
+      // 2. Check Slide 2: Disclaimer Slide
+      else if (disclaimerFrames > 0 && frameIndex < introFrames + disclaimerFrames) {
+        phaseLabel = 'Slide 2: Disclaimer';
+        const slideFrameIndex = frameIndex - introFrames;
+        const slideProgress = slideFrameIndex / Math.max(1, disclaimerFrames);
+        drawDisclaimerSlideFrame(this.ctx, width, height, options, slideProgress);
+        currentDisplaySeconds = totalSeconds;
+      }
+      // 3. Countdown & Hold Phase
+      else if (frameIndex < introFrames + disclaimerFrames + countdownFrames + holdFrames) {
+        const clockFrameIndex = frameIndex - introFrames - disclaimerFrames;
+        phaseLabel = clockFrameIndex < countdownFrames ? 'Countdown Timer' : 'End Hold';
+
+        if (clockFrameIndex < countdownFrames) {
+          const videoSecElapsed = clockFrameIndex / fps;
+          const countdownSecElapsed = videoSecElapsed * speedMultiplier;
+          if (countdownSecElapsed >= totalSeconds) {
+            currentDisplaySeconds = 0;
+            nextDisplaySeconds = 0;
+            fractionalSecond = 0;
+          } else {
+            const secIndex = Math.floor(countdownSecElapsed);
+            currentDisplaySeconds = Math.max(0, totalSeconds - secIndex);
+            nextDisplaySeconds = Math.max(0, currentDisplaySeconds - 1);
+            fractionalSecond = countdownSecElapsed - secIndex;
+          }
+        } else {
           currentDisplaySeconds = 0;
           nextDisplaySeconds = 0;
           fractionalSecond = 0;
-        } else {
-          const secIndex = Math.floor(countdownSecElapsed);
-          currentDisplaySeconds = Math.max(0, totalSeconds - secIndex);
-          nextDisplaySeconds = Math.max(0, currentDisplaySeconds - 1);
-          fractionalSecond = countdownSecElapsed - secIndex;
         }
-      } else {
-        currentDisplaySeconds = 0;
-        nextDisplaySeconds = 0;
-        fractionalSecond = 0;
-      }
 
-      // Draw clock on canvas
-      drawFlipClockFrame(
-        this.ctx,
-        width,
-        height,
-        {
-          currentDisplaySeconds,
-          nextDisplaySeconds,
-          fractionalSecond,
-          totalTargetSeconds: totalSeconds,
-          isFinished: frameIndex >= countdownFrames,
-        },
-        options
-      );
+        drawFlipClockFrame(
+          this.ctx,
+          width,
+          height,
+          {
+            currentDisplaySeconds,
+            nextDisplaySeconds,
+            fractionalSecond,
+            totalTargetSeconds: totalSeconds,
+            isFinished: clockFrameIndex >= countdownFrames,
+          },
+          options
+        );
+      }
+      // 4. Outro Slide
+      else {
+        phaseLabel = 'Outro Slide';
+        const outroFrameIndex = frameIndex - introFrames - disclaimerFrames - countdownFrames - holdFrames;
+        const slideProgress = outroFrameIndex / Math.max(1, outroFrames);
+        drawOutroSlideFrame(this.ctx, width, height, options, slideProgress);
+        currentDisplaySeconds = 0;
+      }
 
       // Create timestamp in microseconds
       const timestampMicros = frameIndex * frameDurationMicros;
@@ -288,7 +336,7 @@ export class VideoRenderEngine {
           currentFrame: frameIndex + 1,
           totalFrames,
           currentSecondLeft: currentDisplaySeconds,
-          currentDisplayTime: timeString,
+          currentDisplayTime: `${timeString} (${phaseLabel})`,
           fpsActual: currentFpsActual,
           percent: Math.min(100, Math.round(progressFrac * 100)),
           elapsedMs,
@@ -377,13 +425,26 @@ export class VideoRenderEngine {
     const fps = Math.max(30, options.fps || 30);
     const speedMultiplier = Math.max(0.01, options.speedMultiplier || 1);
 
+    // Slide durations
+    const introEnabled = options.slides?.intro?.enabled ?? true;
+    const introSec = introEnabled ? (options.slides?.intro?.durationSeconds ?? 5) : 0;
+    const introFrames = Math.round(introSec * fps);
+
+    const disclaimerEnabled = options.slides?.disclaimer?.enabled ?? true;
+    const disclaimerSec = disclaimerEnabled ? (options.slides?.disclaimer?.durationSeconds ?? 5) : 0;
+    const disclaimerFrames = Math.round(disclaimerSec * fps);
+
     const videoCountdownDurationSec = totalSeconds / speedMultiplier;
     const holdSeconds = options.holdEndSeconds || 0;
-    const totalVideoDurationSec = videoCountdownDurationSec + holdSeconds;
-
     const countdownFrames = Math.max(1, Math.round(videoCountdownDurationSec * fps));
     const holdFrames = Math.round(holdSeconds * fps);
-    const totalFrames = countdownFrames + holdFrames;
+
+    const outroEnabled = options.slides?.outro?.enabled ?? true;
+    const outroSec = outroEnabled ? (options.slides?.outro?.durationSeconds ?? 5) : 0;
+    const outroFrames = Math.round(outroSec * fps);
+
+    const totalFrames = introFrames + disclaimerFrames + countdownFrames + holdFrames + outroFrames;
+    const totalVideoDurationSec = introSec + disclaimerSec + videoCountdownDurationSec + holdSeconds + outroSec;
 
     const mimeCandidates =
       options.format === 'mp4'
@@ -443,39 +504,69 @@ export class VideoRenderEngine {
       let currentDisplaySeconds = 0;
       let nextDisplaySeconds = 0;
       let fractionalSecond = 0;
+      let phaseLabel = 'Flip Clock';
 
-      if (frameIndex < countdownFrames) {
-        const videoSecElapsed = frameIndex / fps;
-        const countdownSecElapsed = videoSecElapsed * speedMultiplier;
-        if (countdownSecElapsed >= totalSeconds) {
+      // 1. Check Slide 1: Intro Slide
+      if (introFrames > 0 && frameIndex < introFrames) {
+        phaseLabel = 'Slide 1: Intro';
+        const slideProgress = frameIndex / Math.max(1, introFrames);
+        drawIntroSlideFrame(this.ctx, width, height, timer, options, slideProgress);
+        currentDisplaySeconds = totalSeconds;
+      }
+      // 2. Check Slide 2: Disclaimer Slide
+      else if (disclaimerFrames > 0 && frameIndex < introFrames + disclaimerFrames) {
+        phaseLabel = 'Slide 2: Disclaimer';
+        const slideFrameIndex = frameIndex - introFrames;
+        const slideProgress = slideFrameIndex / Math.max(1, disclaimerFrames);
+        drawDisclaimerSlideFrame(this.ctx, width, height, options, slideProgress);
+        currentDisplaySeconds = totalSeconds;
+      }
+      // 3. Countdown & Hold Phase
+      else if (frameIndex < introFrames + disclaimerFrames + countdownFrames + holdFrames) {
+        const clockFrameIndex = frameIndex - introFrames - disclaimerFrames;
+        phaseLabel = clockFrameIndex < countdownFrames ? 'Countdown Timer' : 'End Hold';
+
+        if (clockFrameIndex < countdownFrames) {
+          const videoSecElapsed = clockFrameIndex / fps;
+          const countdownSecElapsed = videoSecElapsed * speedMultiplier;
+          if (countdownSecElapsed >= totalSeconds) {
+            currentDisplaySeconds = 0;
+            nextDisplaySeconds = 0;
+            fractionalSecond = 0;
+          } else {
+            const secIndex = Math.floor(countdownSecElapsed);
+            currentDisplaySeconds = Math.max(0, totalSeconds - secIndex);
+            nextDisplaySeconds = Math.max(0, currentDisplaySeconds - 1);
+            fractionalSecond = countdownSecElapsed - secIndex;
+          }
+        } else {
           currentDisplaySeconds = 0;
           nextDisplaySeconds = 0;
           fractionalSecond = 0;
-        } else {
-          const secIndex = Math.floor(countdownSecElapsed);
-          currentDisplaySeconds = Math.max(0, totalSeconds - secIndex);
-          nextDisplaySeconds = Math.max(0, currentDisplaySeconds - 1);
-          fractionalSecond = countdownSecElapsed - secIndex;
         }
-      } else {
-        currentDisplaySeconds = 0;
-        nextDisplaySeconds = 0;
-        fractionalSecond = 0;
-      }
 
-      drawFlipClockFrame(
-        this.ctx,
-        width,
-        height,
-        {
-          currentDisplaySeconds,
-          nextDisplaySeconds,
-          fractionalSecond,
-          totalTargetSeconds: totalSeconds,
-          isFinished: frameIndex >= countdownFrames,
-        },
-        options
-      );
+        drawFlipClockFrame(
+          this.ctx,
+          width,
+          height,
+          {
+            currentDisplaySeconds,
+            nextDisplaySeconds,
+            fractionalSecond,
+            totalTargetSeconds: totalSeconds,
+            isFinished: clockFrameIndex >= countdownFrames,
+          },
+          options
+        );
+      }
+      // 4. Outro Slide
+      else {
+        phaseLabel = 'Outro Slide';
+        const outroFrameIndex = frameIndex - introFrames - disclaimerFrames - countdownFrames - holdFrames;
+        const slideProgress = outroFrameIndex / Math.max(1, outroFrames);
+        drawOutroSlideFrame(this.ctx, width, height, options, slideProgress);
+        currentDisplaySeconds = 0;
+      }
 
       if (frameIndex % 5 === 0 || frameIndex === totalFrames - 1) {
         const now = performance.now();
@@ -494,7 +585,7 @@ export class VideoRenderEngine {
           currentFrame: frameIndex + 1,
           totalFrames,
           currentSecondLeft: currentDisplaySeconds,
-          currentDisplayTime: timeString,
+          currentDisplayTime: `${timeString} (${phaseLabel})`,
           fpsActual: fps,
           percent: Math.min(100, Math.round(progressFrac * 100)),
           elapsedMs,

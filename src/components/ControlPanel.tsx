@@ -13,12 +13,15 @@ import {
   Sparkles,
   Volume2,
   ShieldCheck,
+  ShieldAlert,
+  Award,
   Image as ImageIcon,
   Upload,
   Trash2,
   Sliders,
   Move,
   Type,
+  FileText,
 } from 'lucide-react';
 import {
   FlipAnimationMode,
@@ -28,6 +31,7 @@ import {
   VideoResolution,
   WatermarkConfig,
   WatermarkPositionPreset,
+  InterstitialSlidesConfig,
 } from '../types';
 import { THEMES } from '../utils/canvasRenderer';
 
@@ -76,7 +80,34 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   const totalCountdownSeconds = timer.hours * 3600 + timer.minutes * 60 + timer.seconds;
   const holdSec = options.holdEndSeconds || 0;
-  const totalVideoDurationSec = totalCountdownSeconds + holdSec;
+  
+  const slides = options.slides || {
+    intro: {
+      enabled: true,
+      durationSeconds: 5,
+      tagline: 'Deep Focus & Productivity',
+      subtitle: 'Visit: blankscreen.cc Support the channel: buymeacoffee.com/prosun',
+      bottomCallout: 'Like, Share & Subscribe!',
+    },
+    disclaimer: {
+      enabled: true,
+      durationSeconds: 5,
+      title: 'DISCLAIMER',
+      body: 'This video is for educational and entertainment purposes only and is not medical advice. Do not drive or operate heavy machinery while listening. Please consult a physician regarding any medical conditions.',
+    },
+    outro: {
+      enabled: true,
+      durationSeconds: 5,
+      title: "TIME'S UP! Great job focusing today.",
+      subtitle: 'For more timers, tools, and resources, visit: blankscreen.cc',
+      bottomCallout: 'If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)',
+    },
+  };
+
+  const introSec = slides.intro?.enabled ? (slides.intro.durationSeconds || 5) : 0;
+  const disclaimerSec = slides.disclaimer?.enabled ? (slides.disclaimer.durationSeconds || 5) : 0;
+  const outroSec = slides.outro?.enabled ? (slides.outro.durationSeconds || 5) : 0;
+  const totalVideoDurationSec = introSec + disclaimerSec + totalCountdownSeconds + holdSec + outroSec;
   const fps = Math.max(30, options.fps || 30);
   const totalVideoFrames = Math.max(1, Math.round(totalVideoDurationSec * fps));
 
@@ -150,6 +181,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       ...options,
       watermark: {
         ...watermark,
+        ...updates,
+      },
+    });
+  };
+
+  const updateSlides = (updates: Partial<InterstitialSlidesConfig>) => {
+    onOptionsChange({
+      ...options,
+      slides: {
+        ...slides,
         ...updates,
       },
     });
@@ -555,6 +596,352 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             Add a transparent branding logo or watermark text with custom opacity and coordinates (X, Y) on every frame of your video.
           </p>
         )}
+      </div>
+
+      {/* 2. Interstitial Video Slides (Intro, Disclaimer, Outro) Card */}
+      <div className="p-5 rounded-2xl bg-neutral-900 border border-neutral-800 shadow-xl flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-rose-500" />
+            <h2 className="text-sm font-bold text-neutral-200 uppercase tracking-wider">
+              Interstitial Slides (Intro, Disclaimer & Outro)
+            </h2>
+          </div>
+          <span className="text-[11px] font-mono text-neutral-400 bg-neutral-950 px-2.5 py-1 rounded-md border border-neutral-800">
+            Total Slides: {introSec + disclaimerSec + outroSec}s
+          </span>
+        </div>
+
+        {/* Slide 1: Intro */}
+        <div className="p-4 rounded-xl bg-neutral-950/80 border border-neutral-800/80 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <input
+                id="toggle-intro-slide"
+                type="checkbox"
+                checked={slides.intro?.enabled}
+                onChange={(e) =>
+                  updateSlides({
+                    intro: { ...slides.intro, enabled: e.target.checked },
+                  })
+                }
+                disabled={isRendering}
+                className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+              />
+              <label htmlFor="toggle-intro-slide" className="text-xs font-bold text-neutral-200 cursor-pointer flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+                <span>Slide 1: Intro Slide</span>
+              </label>
+            </div>
+            {slides.intro?.enabled && (
+              <div className="flex items-center gap-1 text-xs text-neutral-400">
+                <span>Duration:</span>
+                <span className="font-mono font-bold text-rose-400">{slides.intro.durationSeconds || 5}s</span>
+              </div>
+            )}
+          </div>
+
+          {slides.intro?.enabled && (
+            <div className="flex flex-col gap-3 pt-2 border-t border-neutral-800/80">
+              {/* Dynamic Title Preview */}
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-neutral-400">Dynamic Title (Auto-Updated from Timer)</span>
+                <div className="p-2.5 rounded-lg bg-neutral-900 border border-neutral-800 text-xs font-mono text-neutral-300">
+                  {timer.hours > 0
+                    ? `${timer.hours} HOUR${timer.hours > 1 ? 'S' : ''}${timer.minutes > 0 ? ` ${timer.minutes} MIN` : ''} COUNTDOWN TIMER`
+                    : timer.minutes > 0
+                    ? `${timer.minutes} MINUTE${timer.minutes > 1 ? 'S' : ''}${timer.seconds > 0 ? ` ${timer.seconds} SEC` : ''} COUNTDOWN TIMER`
+                    : `${timer.seconds} SECOND${timer.seconds > 1 ? 'S' : ''} COUNTDOWN TIMER`}
+                </div>
+              </div>
+
+              {/* Tagline */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Tagline (Title Subhead)</label>
+                <input
+                  type="text"
+                  value={slides.intro.tagline || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      intro: { ...slides.intro, tagline: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="Deep Focus & Productivity"
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-rose-500 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                />
+              </div>
+
+              {/* Subtitle / Channel Links */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Subtitle & Channel Links</label>
+                <input
+                  type="text"
+                  value={slides.intro.subtitle || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      intro: { ...slides.intro, subtitle: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="Visit: blankscreen.cc Support the channel: buymeacoffee.com/prosun"
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-rose-500 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                />
+              </div>
+
+              {/* Bottom Callout */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Bottom Callout</label>
+                <input
+                  type="text"
+                  value={slides.intro.bottomCallout || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      intro: { ...slides.intro, bottomCallout: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="Like, Share & Subscribe!"
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-rose-500 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                />
+              </div>
+
+              {/* Duration Slider */}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <span className="text-[11px] text-neutral-400">Slide Display Duration</span>
+                <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+                  <input
+                    type="range"
+                    min="1"
+                    max="15"
+                    step="1"
+                    value={slides.intro.durationSeconds || 5}
+                    onChange={(e) =>
+                      updateSlides({
+                        intro: {
+                          ...slides.intro,
+                          durationSeconds: parseInt(e.target.value) || 5,
+                        },
+                      })
+                    }
+                    disabled={isRendering}
+                    className="w-full accent-rose-500 bg-neutral-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-xs font-mono text-rose-400 font-bold w-6 text-right">
+                    {slides.intro.durationSeconds || 5}s
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Slide 2: Disclaimer */}
+        <div className="p-4 rounded-xl bg-neutral-950/80 border border-neutral-800/80 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <input
+                id="toggle-disclaimer-slide"
+                type="checkbox"
+                checked={slides.disclaimer?.enabled}
+                onChange={(e) =>
+                  updateSlides({
+                    disclaimer: { ...slides.disclaimer, enabled: e.target.checked },
+                  })
+                }
+                disabled={isRendering}
+                className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+              />
+              <label htmlFor="toggle-disclaimer-slide" className="text-xs font-bold text-neutral-200 cursor-pointer flex items-center gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                <span>Slide 2: Mandatory Disclaimer (5s)</span>
+              </label>
+            </div>
+            {slides.disclaimer?.enabled && (
+              <div className="flex items-center gap-1 text-xs text-neutral-400">
+                <span>Duration:</span>
+                <span className="font-mono font-bold text-amber-400">{slides.disclaimer.durationSeconds || 5}s</span>
+              </div>
+            )}
+          </div>
+
+          {slides.disclaimer?.enabled && (
+            <div className="flex flex-col gap-3 pt-2 border-t border-neutral-800/80">
+              {/* Disclaimer Title */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Heading Title</label>
+                <input
+                  type="text"
+                  value={slides.disclaimer.title || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      disclaimer: { ...slides.disclaimer, title: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="DISCLAIMER"
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-white outline-none font-bold"
+                />
+              </div>
+
+              {/* Disclaimer Body Text */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Body Statement</label>
+                <textarea
+                  rows={3}
+                  value={slides.disclaimer.body || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      disclaimer: { ...slides.disclaimer, body: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="This video is for educational and entertainment purposes only..."
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-amber-500 rounded-lg p-2.5 text-xs text-neutral-200 outline-none leading-relaxed resize-none"
+                />
+              </div>
+
+              {/* Duration Slider */}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <span className="text-[11px] text-neutral-400">Slide Display Duration</span>
+                <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+                  <input
+                    type="range"
+                    min="1"
+                    max="15"
+                    step="1"
+                    value={slides.disclaimer.durationSeconds || 5}
+                    onChange={(e) =>
+                      updateSlides({
+                        disclaimer: {
+                          ...slides.disclaimer,
+                          durationSeconds: parseInt(e.target.value) || 5,
+                        },
+                      })
+                    }
+                    disabled={isRendering}
+                    className="w-full accent-amber-500 bg-neutral-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-xs font-mono text-amber-400 font-bold w-6 text-right">
+                    {slides.disclaimer.durationSeconds || 5}s
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Slide 3: Outro Slide */}
+        <div className="p-4 rounded-xl bg-neutral-950/80 border border-neutral-800/80 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <input
+                id="toggle-outro-slide"
+                type="checkbox"
+                checked={slides.outro?.enabled}
+                onChange={(e) =>
+                  updateSlides({
+                    outro: { ...slides.outro, enabled: e.target.checked },
+                  })
+                }
+                disabled={isRendering}
+                className="w-4 h-4 accent-rose-500 rounded cursor-pointer"
+              />
+              <label htmlFor="toggle-outro-slide" className="text-xs font-bold text-neutral-200 cursor-pointer flex items-center gap-1.5">
+                <Award className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Slide 3: Outro Slide (End of Video)</span>
+              </label>
+            </div>
+            {slides.outro?.enabled && (
+              <div className="flex items-center gap-1 text-xs text-neutral-400">
+                <span>Duration:</span>
+                <span className="font-mono font-bold text-emerald-400">{slides.outro.durationSeconds || 5}s</span>
+              </div>
+            )}
+          </div>
+
+          {slides.outro?.enabled && (
+            <div className="flex flex-col gap-3 pt-2 border-t border-neutral-800/80">
+              {/* Outro Title */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Outro Heading</label>
+                <input
+                  type="text"
+                  value={slides.outro.title || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      outro: { ...slides.outro, title: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="TIME'S UP! Great job focusing today."
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none font-bold"
+                />
+              </div>
+
+              {/* Subtitle */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Outro Subtitle</label>
+                <input
+                  type="text"
+                  value={slides.outro.subtitle || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      outro: { ...slides.outro, subtitle: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="For more timers, tools, and resources, visit: blankscreen.cc"
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                />
+              </div>
+
+              {/* Bottom Callout */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] font-semibold text-neutral-400">Bottom Callout / Donation Link</label>
+                <input
+                  type="text"
+                  value={slides.outro.bottomCallout || ''}
+                  onChange={(e) =>
+                    updateSlides({
+                      outro: { ...slides.outro, bottomCallout: e.target.value },
+                    })
+                  }
+                  disabled={isRendering}
+                  placeholder="If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)"
+                  className="w-full bg-neutral-900 border border-neutral-700/80 focus:border-emerald-500 rounded-lg px-3 py-2 text-xs text-white outline-none"
+                />
+              </div>
+
+              {/* Duration Slider */}
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <span className="text-[11px] text-neutral-400">Slide Display Duration</span>
+                <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+                  <input
+                    type="range"
+                    min="1"
+                    max="15"
+                    step="1"
+                    value={slides.outro.durationSeconds || 5}
+                    onChange={(e) =>
+                      updateSlides({
+                        outro: {
+                          ...slides.outro,
+                          durationSeconds: parseInt(e.target.value) || 5,
+                        },
+                      })
+                    }
+                    disabled={isRendering}
+                    className="w-full accent-emerald-500 bg-neutral-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="text-xs font-mono text-emerald-400 font-bold w-6 text-right">
+                    {slides.outro.durationSeconds || 5}s
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 3. Hardware-Accelerated Fast Engine Banner */}

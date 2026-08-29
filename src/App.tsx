@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Header } from './components/Header';
-import { FlipClockPreview } from './components/FlipClockPreview';
+import { VideoPlayerPreview } from './components/VideoPlayerPreview';
 import { ControlPanel } from './components/ControlPanel';
 import { RenderProgressModal } from './components/RenderProgressModal';
 import { VideoResultView } from './components/VideoResultView';
@@ -38,6 +38,28 @@ export default function App() {
       text: '',
     },
     codecPreference: 'auto',
+    slides: {
+      intro: {
+        enabled: true,
+        durationSeconds: 5,
+        tagline: 'Deep Focus & Productivity',
+        subtitle: 'Visit: blankscreen.cc Support the channel: buymeacoffee.com/prosun',
+        bottomCallout: 'Like, Share & Subscribe!',
+      },
+      disclaimer: {
+        enabled: true,
+        durationSeconds: 5,
+        title: 'DISCLAIMER',
+        body: 'This video is for educational and entertainment purposes only and is not medical advice. Do not drive or operate heavy machinery while listening. Please consult a physician regarding any medical conditions.',
+      },
+      outro: {
+        enabled: true,
+        durationSeconds: 5,
+        title: "TIME'S UP! Great job focusing today.",
+        subtitle: 'For more timers, tools, and resources, visit: blankscreen.cc',
+        bottomCallout: 'If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)',
+      },
+    },
   });
 
   const [codecStatus, setCodecStatus] = useState<CodecSupportStatus | null>(null);
@@ -222,10 +244,10 @@ export default function App() {
                   progress={progress}
                   onCancel={handleCancelRender}
                 />
-                <FlipClockPreview timer={timer} options={options} />
+                <VideoPlayerPreview timer={timer} options={options} />
               </div>
             ) : (
-              <FlipClockPreview timer={timer} options={options} />
+              <VideoPlayerPreview timer={timer} options={options} />
             )}
 
             {/* Quick Tips Section */}

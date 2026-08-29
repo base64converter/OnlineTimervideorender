@@ -874,3 +874,502 @@ function roundRect(
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
 }
+
+/**
+ * Dynamically formats the countdown title string for any timer duration (e.g. 10 HOURS -> "10 HOUR COUNTDOWN TIMER")
+ */
+export function formatDynamicCountdownTitle(hours: number, minutes: number, seconds: number): string {
+  const parts: string[] = [];
+  if (hours > 0) {
+    parts.push(`${hours} HOUR`);
+  }
+  if (minutes > 0) {
+    parts.push(`${minutes} MINUTE`);
+  }
+  if (seconds > 0 || parts.length === 0) {
+    parts.push(`${seconds} SECOND`);
+  }
+  return `${parts.join(' ')} COUNTDOWN TIMER`;
+}
+
+/**
+ * Helper to wrap text cleanly across multiple lines on Canvas.
+ */
+function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+
+  for (const word of words) {
+    const testLine = currentLine ? `${currentLine} ${word}` : word;
+    const metrics = ctx.measureText(testLine);
+    if (metrics.width > maxWidth && currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = testLine;
+    }
+  }
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  return lines;
+}
+
+/**
+ * Slide 1: Intro Slide (5 seconds)
+ * [Title - Large & Centered] {DYNAMIC} COUNTDOWN TIMER  Deep Focus & Productivity
+ * [Subtitle - Medium] Visit: blankscreen.cc Support the channel: buymeacoffee.com/prosun
+ * [Bottom - Bold] Like, Share & Subscribe!
+ */
+export function drawIntroSlideFrame(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  timer: { hours: number; minutes: number; seconds: number },
+  options: RenderOptions,
+  slideProgress: number = 0 // 0.0 to 1.0 (fraction of slide duration)
+) {
+  const theme = THEMES[options.themeId] || THEMES['white-red'];
+  const baseScale = Math.min(width / 1920, height / 1080);
+  const isPortrait = height > width;
+
+  // Background radial gradient
+  const bgGrad = ctx.createRadialGradient(
+    width / 2, height / 2, Math.min(width, height) * 0.1,
+    width / 2, height / 2, Math.max(width, height) * 0.8
+  );
+  bgGrad.addColorStop(0, theme.bgGradStart);
+  bgGrad.addColorStop(1, theme.bgGradEnd);
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  // Subtle animated entry opacity / zoom
+  const alpha = slideProgress < 0.15 ? slideProgress / 0.15 : slideProgress > 0.88 ? (1 - slideProgress) / 0.12 : 1;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.01, Math.min(1, alpha));
+
+  const introConfig = options.slides?.intro || {
+    enabled: true,
+    durationSeconds: 5,
+    tagline: 'Deep Focus & Productivity',
+    subtitle: 'Visit: blankscreen.cc  •  Support the channel: buymeacoffee.com/prosun',
+    bottomCallout: 'Like, Share & Subscribe!',
+  };
+
+  const dynamicTimerTitle = formatDynamicCountdownTitle(timer.hours, timer.minutes, timer.seconds);
+
+  // Central Card Container
+  const cardW = isPortrait ? width * 0.9 : Math.min(width * 0.85, 1400 * baseScale);
+  const cardH = isPortrait ? height * 0.75 : Math.min(height * 0.72, 680 * baseScale);
+  const cardX = (width - cardW) / 2;
+  const cardY = (height - cardH) / 2;
+
+  // Background Card with smooth border
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+  ctx.shadowBlur = 35 * baseScale;
+  ctx.shadowOffsetY = 18 * baseScale;
+  ctx.fillStyle = theme.cardBg;
+  roundRect(ctx, cardX, cardY, cardW, cardH, 24 * baseScale);
+  ctx.fill();
+
+  ctx.strokeStyle = theme.cardBorder || 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 2 * baseScale;
+  ctx.stroke();
+  ctx.restore();
+
+  // Top Pill Badge
+  const badgeW = 280 * baseScale;
+  const badgeH = 38 * baseScale;
+  const badgeX = width / 2 - badgeW / 2;
+  const badgeY = cardY + 45 * baseScale;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 19 * baseScale);
+  ctx.fill();
+  ctx.strokeStyle = theme.textColor;
+  ctx.lineWidth = 1.5 * baseScale;
+  ctx.stroke();
+
+  ctx.fillStyle = theme.textColor;
+  ctx.font = `700 ${Math.floor(14 * baseScale)}px "Plus Jakarta Sans", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⏳ COUNTDOWN FOCUS SESSION', width / 2, badgeY + badgeH / 2);
+  ctx.restore();
+
+  // Large Dynamic Title
+  ctx.save();
+  ctx.fillStyle = theme.textColor;
+  if (theme.glowColor && theme.glowColor !== 'transparent') {
+    ctx.shadowColor = theme.glowColor;
+    ctx.shadowBlur = 20 * baseScale;
+  }
+  ctx.font = `900 ${Math.floor(isPortrait ? 44 * baseScale : 62 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const titleY = cardY + (isPortrait ? 170 : 155) * baseScale;
+  ctx.fillText(dynamicTimerTitle, width / 2, titleY);
+  ctx.restore();
+
+  // Tagline: "Deep Focus & Productivity"
+  ctx.save();
+  ctx.fillStyle = '#f4f4f5';
+  ctx.font = `700 ${Math.floor(isPortrait ? 28 * baseScale : 36 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const taglineY = titleY + (isPortrait ? 60 : 65) * baseScale;
+  ctx.fillText(introConfig.tagline || 'Deep Focus & Productivity', width / 2, taglineY);
+  ctx.restore();
+
+  // Accent Line Divider
+  ctx.save();
+  const divW = Math.min(cardW * 0.6, 500 * baseScale);
+  const divX = (width - divW) / 2;
+  const divY = taglineY + 45 * baseScale;
+  const lineGrad = ctx.createLinearGradient(divX, divY, divX + divW, divY);
+  lineGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  lineGrad.addColorStop(0.5, theme.textColor);
+  lineGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = lineGrad;
+  ctx.fillRect(divX, divY, divW, 2.5 * baseScale);
+  ctx.restore();
+
+  // Subtitle: "Visit: blankscreen.cc Support the channel: buymeacoffee.com/prosun"
+  ctx.save();
+  ctx.fillStyle = '#a1a1aa';
+  ctx.font = `600 ${Math.floor(isPortrait ? 18 * baseScale : 23 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const subY = divY + 55 * baseScale;
+  ctx.fillText(introConfig.subtitle || 'Visit: blankscreen.cc   Support the channel: buymeacoffee.com/prosun', width / 2, subY);
+  ctx.restore();
+
+  // Bottom Callout Box: "Like, Share & Subscribe!"
+  const calloutW = Math.min(cardW * 0.7, 480 * baseScale);
+  const calloutH = 56 * baseScale;
+  const calloutX = (width - calloutW) / 2;
+  const calloutY = cardY + cardH - (isPortrait ? 100 : 90) * baseScale;
+
+  ctx.save();
+  ctx.fillStyle = theme.cardBottomBg || 'rgba(0, 0, 0, 0.4)';
+  roundRect(ctx, calloutX, calloutY, calloutW, calloutH, 16 * baseScale);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.lineWidth = 1.5 * baseScale;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `800 ${Math.floor(isPortrait ? 20 * baseScale : 24 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(introConfig.bottomCallout || 'Like, Share & Subscribe!', width / 2, calloutY + calloutH / 2);
+  ctx.restore();
+
+  // Draw Bottom Progress Bar for the 5-sec slide
+  ctx.save();
+  const progW = cardW * 0.9;
+  const progX = (width - progW) / 2;
+  const progY = cardY + cardH - 16 * baseScale;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+  roundRect(ctx, progX, progY, progW, 4 * baseScale, 2 * baseScale);
+  ctx.fill();
+  ctx.fillStyle = theme.textColor;
+  roundRect(ctx, progX, progY, progW * Math.min(1, slideProgress), 4 * baseScale, 2 * baseScale);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+/**
+ * Slide 2: Mandatory Disclaimer (5 seconds)
+ * [Title - Medium & Centered] DISCLAIMER
+ * [Body - Smaller Text] This video is for educational and entertainment purposes only and is not medical advice.
+ * Do not drive or operate heavy machinery while listening. Please consult a physician regarding any medical conditions.
+ */
+export function drawDisclaimerSlideFrame(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: RenderOptions,
+  slideProgress: number = 0
+) {
+  const theme = THEMES[options.themeId] || THEMES['white-red'];
+  const baseScale = Math.min(width / 1920, height / 1080);
+  const isPortrait = height > width;
+
+  // Radial Background
+  const bgGrad = ctx.createRadialGradient(
+    width / 2, height / 2, Math.min(width, height) * 0.1,
+    width / 2, height / 2, Math.max(width, height) * 0.8
+  );
+  bgGrad.addColorStop(0, '#120d10');
+  bgGrad.addColorStop(1, '#080507');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  const alpha = slideProgress < 0.15 ? slideProgress / 0.15 : slideProgress > 0.88 ? (1 - slideProgress) / 0.12 : 1;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.01, Math.min(1, alpha));
+
+  const disclaimerConfig = options.slides?.disclaimer || {
+    enabled: true,
+    durationSeconds: 5,
+    title: 'DISCLAIMER',
+    body: 'This video is for educational and entertainment purposes only and is not medical advice. Do not drive or operate heavy machinery while listening. Please consult a physician regarding any medical conditions.',
+  };
+
+  const cardW = isPortrait ? width * 0.9 : Math.min(width * 0.82, 1300 * baseScale);
+  const cardH = isPortrait ? height * 0.72 : Math.min(height * 0.65, 580 * baseScale);
+  const cardX = (width - cardW) / 2;
+  const cardY = (height - cardH) / 2;
+
+  // Background Card
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+  ctx.shadowBlur = 35 * baseScale;
+  ctx.shadowOffsetY = 18 * baseScale;
+  ctx.fillStyle = '#17171c';
+  roundRect(ctx, cardX, cardY, cardW, cardH, 24 * baseScale);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(239, 68, 68, 0.3)'; // red accent border
+  ctx.lineWidth = 2 * baseScale;
+  ctx.stroke();
+  ctx.restore();
+
+  // Top Shield / Warning Badge
+  const badgeW = 200 * baseScale;
+  const badgeH = 36 * baseScale;
+  const badgeX = width / 2 - badgeW / 2;
+  const badgeY = cardY + 45 * baseScale;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 18 * baseScale);
+  ctx.fill();
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 1.5 * baseScale;
+  ctx.stroke();
+
+  ctx.fillStyle = '#fca5a5';
+  ctx.font = `700 ${Math.floor(13 * baseScale)}px "Plus Jakarta Sans", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⚠️ NOTICE', width / 2, badgeY + badgeH / 2);
+  ctx.restore();
+
+  // Title: "DISCLAIMER"
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `900 ${Math.floor(isPortrait ? 38 * baseScale : 52 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const titleY = cardY + 140 * baseScale;
+  ctx.fillText(disclaimerConfig.title || 'DISCLAIMER', width / 2, titleY);
+  ctx.restore();
+
+  // Divider Line
+  ctx.save();
+  const divW = Math.min(cardW * 0.4, 300 * baseScale);
+  const divX = (width - divW) / 2;
+  const divY = titleY + 40 * baseScale;
+  ctx.fillStyle = 'rgba(239, 68, 68, 0.6)';
+  ctx.fillRect(divX, divY, divW, 2 * baseScale);
+  ctx.restore();
+
+  // Body text wrapped
+  ctx.save();
+  ctx.fillStyle = '#e4e4e7';
+  ctx.font = `500 ${Math.floor(isPortrait ? 19 * baseScale : 26 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  const bodyText = disclaimerConfig.body ||
+    'This video is for educational and entertainment purposes only and is not medical advice. Do not drive or operate heavy machinery while listening. Please consult a physician regarding any medical conditions.';
+
+  const maxTextWidth = cardW * 0.85;
+  const lines = wrapTextLines(ctx, bodyText, maxTextWidth);
+  const lineHeight = (isPortrait ? 32 : 44) * baseScale;
+  const textStartY = divY + 45 * baseScale;
+
+  lines.forEach((line, idx) => {
+    ctx.fillText(line, width / 2, textStartY + idx * lineHeight);
+  });
+  ctx.restore();
+
+  // Progress bar
+  ctx.save();
+  const progW = cardW * 0.9;
+  const progX = (width - progW) / 2;
+  const progY = cardY + cardH - 16 * baseScale;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+  roundRect(ctx, progX, progY, progW, 4 * baseScale, 2 * baseScale);
+  ctx.fill();
+  ctx.fillStyle = '#ef4444';
+  roundRect(ctx, progX, progY, progW * Math.min(1, slideProgress), 4 * baseScale, 2 * baseScale);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
+}
+
+/**
+ * Outro Slide (End of video, 5 seconds)
+ * [Title - Large & Centered] TIME'S UP! Great job focusing today.
+ * [Subtitle - Medium] For more timers, tools, and resources, visit: blankscreen.cc
+ * [Bottom - Bold] If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)
+ */
+export function drawOutroSlideFrame(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  options: RenderOptions,
+  slideProgress: number = 0
+) {
+  const theme = THEMES[options.themeId] || THEMES['white-red'];
+  const baseScale = Math.min(width / 1920, height / 1080);
+  const isPortrait = height > width;
+
+  // Background
+  const bgGrad = ctx.createRadialGradient(
+    width / 2, height / 2, Math.min(width, height) * 0.1,
+    width / 2, height / 2, Math.max(width, height) * 0.8
+  );
+  bgGrad.addColorStop(0, theme.bgGradStart);
+  bgGrad.addColorStop(1, theme.bgGradEnd);
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  const alpha = slideProgress < 0.15 ? slideProgress / 0.15 : slideProgress > 0.88 ? (1 - slideProgress) / 0.12 : 1;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.01, Math.min(1, alpha));
+
+  const outroConfig = options.slides?.outro || {
+    enabled: true,
+    durationSeconds: 5,
+    title: "TIME'S UP! Great job focusing today.",
+    subtitle: 'For more timers, tools, and resources, visit: blankscreen.cc',
+    bottomCallout: 'If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)',
+  };
+
+  const cardW = isPortrait ? width * 0.9 : Math.min(width * 0.85, 1400 * baseScale);
+  const cardH = isPortrait ? height * 0.75 : Math.min(height * 0.72, 680 * baseScale);
+  const cardX = (width - cardW) / 2;
+  const cardY = (height - cardH) / 2;
+
+  // Card Background
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+  ctx.shadowBlur = 35 * baseScale;
+  ctx.shadowOffsetY = 18 * baseScale;
+  ctx.fillStyle = theme.cardBg;
+  roundRect(ctx, cardX, cardY, cardW, cardH, 24 * baseScale);
+  ctx.fill();
+
+  ctx.strokeStyle = theme.cardBorder || 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 2 * baseScale;
+  ctx.stroke();
+  ctx.restore();
+
+  // Top Badge
+  const badgeW = 240 * baseScale;
+  const badgeH = 38 * baseScale;
+  const badgeX = width / 2 - badgeW / 2;
+  const badgeY = cardY + 45 * baseScale;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(16, 185, 129, 0.15)';
+  roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 19 * baseScale);
+  ctx.fill();
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 1.5 * baseScale;
+  ctx.stroke();
+
+  ctx.fillStyle = '#6ee7b7';
+  ctx.font = `700 ${Math.floor(14 * baseScale)}px "Plus Jakarta Sans", sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🎉 SESSION COMPLETE', width / 2, badgeY + badgeH / 2);
+  ctx.restore();
+
+  // Main Outro Title: "TIME'S UP! Great job focusing today."
+  ctx.save();
+  ctx.fillStyle = theme.textColor;
+  if (theme.glowColor && theme.glowColor !== 'transparent') {
+    ctx.shadowColor = theme.glowColor;
+    ctx.shadowBlur = 20 * baseScale;
+  }
+  ctx.font = `900 ${Math.floor(isPortrait ? 40 * baseScale : 56 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const titleY = cardY + 160 * baseScale;
+  ctx.fillText(outroConfig.title || "TIME'S UP! Great job focusing today.", width / 2, titleY);
+  ctx.restore();
+
+  // Subtitle: "For more timers, tools, and resources, visit: blankscreen.cc"
+  ctx.save();
+  ctx.fillStyle = '#e4e4e7';
+  ctx.font = `600 ${Math.floor(isPortrait ? 20 * baseScale : 26 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const subY = titleY + 70 * baseScale;
+  ctx.fillText(outroConfig.subtitle || 'For more timers, tools, and resources, visit: blankscreen.cc', width / 2, subY);
+  ctx.restore();
+
+  // Divider Line
+  ctx.save();
+  const divW = Math.min(cardW * 0.5, 400 * baseScale);
+  const divX = (width - divW) / 2;
+  const divY = subY + 45 * baseScale;
+  const lineGrad = ctx.createLinearGradient(divX, divY, divX + divW, divY);
+  lineGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  lineGrad.addColorStop(0.5, '#10b981');
+  lineGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = lineGrad;
+  ctx.fillRect(divX, divY, divW, 2.5 * baseScale);
+  ctx.restore();
+
+  // Bottom Box: "If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)"
+  const calloutW = Math.min(cardW * 0.85, 780 * baseScale);
+  const calloutH = 64 * baseScale;
+  const calloutX = (width - calloutW) / 2;
+  const calloutY = cardY + cardH - (isPortrait ? 110 : 100) * baseScale;
+
+  ctx.save();
+  ctx.fillStyle = theme.cardBottomBg || 'rgba(0, 0, 0, 0.4)';
+  roundRect(ctx, calloutX, calloutY, calloutW, calloutH, 18 * baseScale);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.lineWidth = 1.5 * baseScale;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `800 ${Math.floor(isPortrait ? 17 * baseScale : 22 * baseScale)}px "Plus Jakarta Sans", -apple-system, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(
+    outroConfig.bottomCallout || 'If this timer helped you, please Like & Subscribe! (buymeacoffee.com/prosun)',
+    width / 2,
+    calloutY + calloutH / 2
+  );
+  ctx.restore();
+
+  // Progress bar
+  ctx.save();
+  const progW = cardW * 0.9;
+  const progX = (width - progW) / 2;
+  const progY = cardY + cardH - 16 * baseScale;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+  roundRect(ctx, progX, progY, progW, 4 * baseScale, 2 * baseScale);
+  ctx.fill();
+  ctx.fillStyle = '#10b981';
+  roundRect(ctx, progX, progY, progW * Math.min(1, slideProgress), 4 * baseScale, 2 * baseScale);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
+}
